@@ -2,7 +2,7 @@
 // Internal 
 #include "partition.h"
 #include "wifi.h"
-#include "config.h"
+#include "io_config.h"
 
 // SDK
 
@@ -18,19 +18,21 @@
 // LIB: EasyQ
 #include "easyq.h" 
 #include "debug.h"
+#include "params.h"
 
 
 #define STATUS_INTERVAL		200	
 #define VERSION				"0.1.1"
 
-LOCAL EasyQSession eq;
-ETSTimer status_timer;
-ETSTimer relay_timer;
-LOCAL bool led_status;
-LOCAL bool main_is_on;
-LOCAL bool remote;
-LOCAL uint32_t ticks;
 
+static EasyQSession eq;
+static ETSTimer status_timer;
+static ETSTimer relay_timer;
+static bool led_status;
+static bool main_is_on;
+static bool remote;
+static uint32_t ticks;
+static Params params;
 
 enum led_status {
 	LED_OFF = 1,
@@ -147,7 +149,7 @@ easyq_message_cb(void *arg, const char *queue, const char *msg,
 void ICACHE_FLASH_ATTR
 easyq_connect_cb(void *arg) {
 	INFO("EASYQ: Connected to %s:%d\r\n", eq.hostname, eq.port);
-	INFO("\r\n***** AMP Power Supply "VERSION"****\r\n");
+	INFO("\r\n***** "DEVICE_NAME" "VERSION" ****\r\n");
 	update_led_status(LED_OFF);
 	const char * queues[] = {RELAY_MAIN_QUEUE, FOTA_QUEUE};
 	easyq_pull_all(&eq, queues, 2);
@@ -168,6 +170,20 @@ void easyq_disconnect_cb(void *arg)
 	EasyQSession *e = (EasyQSession*) arg;
 	INFO("EASYQ: Disconnected from %s:%d\r\n", e->hostname, e->port);
 	easyq_delete(&eq);
+}
+
+
+void setup_easyq() {
+	EasyQError err = \
+			easyq_init(&eq, params.easyq_host, EASYQ_PORT, EASYQ_LOGIN);
+	if (err != EASYQ_OK) {
+		ERROR("EASYQ INIT ERROR: %d\r\n", err);
+		return;
+	}
+	eq.onconnect = easyq_connect_cb;
+	eq.ondisconnect = easyq_disconnect_cb;
+	eq.onconnectionerror = easyq_connection_error_cb;
+	eq.onmessage = easyq_message_cb;
 }
 
 
@@ -203,18 +219,21 @@ void user_init(void) {
 	//PIN_PULLUP_DIS(LED_MUX);
 	GPIO_OUTPUT_SET(GPIO_ID_PIN(LED_NUM), 1);
 
-	EasyQError err = easyq_init(&eq, EASYQ_HOSTNAME, EASYQ_PORT, EASYQ_LOGIN);
-	if (err != EASYQ_OK) {
-		ERROR("EASYQ INIT ERROR: %d\r\n", err);
+	bool ok = params_load(&params);
+	if (!ok) {
+		ERROR("Cannot load Params\r\n");
+		system_upgrade_flag_set(UPGRADE_FLAG_FINISH);
+		system_upgrade_reboot();
 		return;
 	}
-	eq.onconnect = easyq_connect_cb;
-	eq.ondisconnect = easyq_disconnect_cb;
-	eq.onconnectionerror = easyq_connection_error_cb;
-	eq.onmessage = easyq_message_cb;
-
+	INFO("Params loaded sucessfully: ssid: %s psk: %s easyq: %s\r\n",
+			params.wifi_ssid, 
+			params.wifi_psk,
+			params.easyq_host
+		);
 	update_led_status(BLINK_FAST);
-    WIFI_Connect(WIFI_SSID, WIFI_PSK, wifi_connect_cb);
+	setup_easyq();
+    wifi_connect(params.wifi_ssid, params.wifi_psk, wifi_connect_cb);
     INFO("System started ...\r\n");
 }
 
