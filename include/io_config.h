@@ -13,6 +13,7 @@
 #define FOTA_STATUS_QUEUE		DEVICE_NAME":fota:status"
 #define RELAY_MAIN_QUEUE		DEVICE_NAME	
 
+#define WIFI_SLEEP_LEVEL	5
 /* GPIO */
 
 // LED

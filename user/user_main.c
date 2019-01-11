@@ -202,6 +202,16 @@ void user_init(void) {
     uart_init(BIT_RATE_115200, BIT_RATE_115200);
     os_delay_us(60000);
 
+//	if (!wifi_set_sleep_level(MAX_SLEEP_T)) {
+//		ERROR("Cannot change WIFI level.\r\n");
+//	}
+	if (!wifi_set_listen_interval(WIFI_SLEEP_LEVEL)) {
+		ERROR("Cannot change WIFI beacon interval.\r\n");
+	}
+	if (!wifi_set_sleep_type(LIGHT_SLEEP_T)) {
+		ERROR("Cannot change WIFI sleep type.\r\n");
+	}
+
 	/* Relays */
 
 	// AMP AC MAIN 
